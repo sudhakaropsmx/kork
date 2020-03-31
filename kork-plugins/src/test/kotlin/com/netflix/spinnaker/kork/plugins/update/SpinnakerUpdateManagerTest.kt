@@ -19,12 +19,21 @@ package com.netflix.spinnaker.kork.plugins.update
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.netflix.spinnaker.kork.plugins.SpinnakerPluginManager
 import com.netflix.spinnaker.kork.plugins.SpinnakerServiceVersionManager
+import com.netflix.spinnaker.kork.plugins.bundle.PluginBundleExtractor
 import com.netflix.spinnaker.kork.plugins.internal.PluginZip
 import com.netflix.spinnaker.kork.plugins.testplugin.TestPluginBuilder
 import com.netflix.spinnaker.kork.plugins.update.release.PluginInfoRelease
 import dev.minutest.junit.JUnit5Minutests
 import dev.minutest.rootContext
+import io.mockk.MockKSettings.relaxed
 import io.mockk.mockk
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.time.Instant
+import java.util.Date
 import org.pf4j.DefaultPluginStatusProvider
 import org.pf4j.update.DefaultUpdateRepository
 import org.pf4j.update.PluginInfo
@@ -33,13 +42,8 @@ import org.springframework.context.ApplicationEventPublisher
 import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.hasSize
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
-import java.time.Instant
-import java.util.Date
+import strikt.assertions.isA
+import strikt.assertions.isNull
 
 class SpinnakerUpdateManagerTest : JUnit5Minutests {
 
@@ -109,6 +113,10 @@ class SpinnakerUpdateManagerTest : JUnit5Minutests {
 
       // Previously loaded plugin is still loaded
       expectThat(pluginManager.plugins).hasSize(1)
+
+      // Get the plugin release matching the service name, if not found we should receive null
+      expectThat(subject.getLastPluginRelease(plugin.id, "orca")).isA<PluginInfo.PluginRelease>()
+      expectThat(subject.getLastPluginRelease(plugin.id, "deck")).isNull()
     }
   }
 
@@ -122,7 +130,8 @@ class SpinnakerUpdateManagerTest : JUnit5Minutests {
       mockk(relaxed = true),
       listOf(),
       "orca",
-      paths.plugins
+      paths.plugins,
+      PluginBundleExtractor(mockk(relaxed = true))
     )
 
     val repositories = listOf(DefaultUpdateRepository("testing",
@@ -188,7 +197,7 @@ class SpinnakerUpdateManagerTest : JUnit5Minutests {
         provider = "Spinnaker"
         releases = listOf(
           PluginInfo.PluginRelease().apply {
-            requires = "orca"
+            requires = "orca>=0.0.0"
             version = pluginBuilder.version
             date = Date.from(Instant.now())
             url = releasePath.toUri().toURL().toString()

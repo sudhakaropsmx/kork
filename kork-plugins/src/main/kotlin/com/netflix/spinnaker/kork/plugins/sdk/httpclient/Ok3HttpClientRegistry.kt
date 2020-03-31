@@ -21,10 +21,9 @@ import com.netflix.spinnaker.kork.exceptions.IntegrationException
 import com.netflix.spinnaker.kork.plugins.api.httpclient.HttpClient
 import com.netflix.spinnaker.kork.plugins.api.httpclient.HttpClientConfig
 import com.netflix.spinnaker.kork.plugins.api.httpclient.HttpClientRegistry
-import com.netflix.spinnaker.kork.plugins.sdk.httpclient.internal.OkHttp3ClientFactory
+import java.util.concurrent.ConcurrentHashMap
 import okhttp3.OkHttpClient
 import org.springframework.core.env.Environment
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Configures and provides [HttpClient]s to an extension.
@@ -45,8 +44,13 @@ class Ok3HttpClientRegistry(
     clients.computeIfAbsent("$pluginId.$name") {
       // Try to reduce the number of OkHttpClient instances that are floating around. We'll only create a new client
       // if the config is different from any other OkHttpClient.
-      val okClient = okClients.computeIfAbsent(config) { okHttp3ClientFactory.create(config) }
-      Ok3HttpClient("$pluginId.$name", baseUrl, okClient, objectMapper)
+      val okClient = okClients.computeIfAbsent(config) { okHttp3ClientFactory.create(baseUrl, config) }
+      Ok3HttpClient(
+        "$pluginId.$name",
+        okHttp3ClientFactory.normalizeBaseUrl(baseUrl),
+        okClient,
+        objectMapper
+      )
     }
   }
 
